@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
-from subprocess import check_call
+from subprocess import check_call, CalledProcessError
 import shlex
 import datetime
 class BackupRunner():
@@ -20,28 +20,36 @@ class BackupRunner():
             fp.close()
 
     def backup_host(self, host, host_config):
-        subvol_dir = os.path.join(self.dest_dir, host)
-        dest_dir = os.path.join(subvol_dir, "latest")
-        if not os.path.exists(subvol_dir):
+        host_dir = os.path.join(self.dest_dir, host)
+        subvol_dir = os.path.join(host_dir, "latest")
+        if not os.path.exists(host_dir):
             print("New host",host,".")
+            os.makedir(host_dir)
+        if not os.path.exists(subvol_dir):
             try:
                 check_call(shlex.split("btrfs subvol create %s"% subvol_dir))
-            except subprocess.CalledProcessError as ex:
+            except CalledProcessError as ex:
                 print("Failed to create subvol! Aborting backup.")
                 return() 
-            os.makedirs(dest_dir)
-        command = ("rsync --timeout=10 -a --numeric-ids --delete --delete-excluded --human-readable --inplace ")
+            
+        command = ("rsync -a --acls --xattrs --whole-file --numeric-ids --delete --delete-excluded --human-readable --inplace ")
         excludes = host_config.readline()[:-1]
         try:
-            check_call(shlex.split(command + excludes + " root@%s:/ "%(host) + dest_dir))
-        except subprocess.CalledProcessError as ex:
-            if ex.returncode not in (30, 255):
-                print("Rsync did not transfer anything, skipping snapshot.")
+            check_call(shlex.split(command + excludes + " root@%s:/ "%(host) + subvol_dir))
+        except CalledProcessError as ex:
+            if ex.returncode not in (12, 30, 255):
+                print("Rsync did not transfer anything from %s, skipping snapshot."%host)
                 return()
         todays_date = datetime.datetime.now().date().strftime("%F")
+        if os.path.exists(os.path.join(host_dir, todays_date)):
+            #There is a snapshot for today, removing it and creating a new one
+            try:
+                check_call(shlex.split("btrfs subvol delete %s"%(os.path.join(host_dir, todays_date))))
+            except CalledProcessError as ex: 
+                pass    
         try:
-            check_call(shlex.split("btrfs subvol snapshot %s %s"%(subvol_dir,os.path.join(subvol_dir, todays_date))))
-        except subprocess.CalledProcessError as ex: 
+            check_call(shlex.split("btrfs subvol snapshot -r %s %s"%(subvol_dir,os.path.join(host_dir, todays_date))))
+        except CalledProcessError as ex: 
             pass
 
 if __name__ == "__main__":
