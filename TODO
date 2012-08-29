@@ -1,2 +1,3 @@
 Make debian packages
 Make initial setup a bit nicer
+Make += work for inherted values. 

@@ -5,9 +5,10 @@ Butterbackup is a backup system which stores snapshots in btrfs on a central ser
 
 For now it is rather crude. To get started backing up some manual work is needed.
 <pre lang="bash"><code>
-Create /etc/Butterbackup
-# echo "--exclude /tmp --exclude /proc --exclude /sys --exclude /dev" > /etc/butterbackup/machine1.example.com
-# cp /etc/butterbackup/machine1.example.com /etc/butterbackup/machine2.example.com
+Create /etc/butterbackup
+# echo "--exclude /tmp --exclude /proc --exclude /sys --exclude /dev" > /etc/butterbackup/default.cfg
+# touch /etc/butterbackup/machine1.example.com
+# touch /etc/butterbackup/machine2.example.com
 # ssh-copy-id root@machine1.example.com
 # ssh-copy-id root@machine1.example.com
 # mkdir /mnt/data2
