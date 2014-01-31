@@ -19,8 +19,8 @@ class Host():
 
     def backup(self):
         if not os.path.exists(self.host_dir):
-            print("New host",host,".")
-            os.makedir(self.host_dir)
+            print("New host",self.name,".")
+            os.makedirs(self.host_dir)
         if not os.path.exists(self.subvol_dir):
             try:
                 check_call(shlex.split("btrfs subvol create %s"% self.subvol_dir))
@@ -53,7 +53,9 @@ class Host():
         if self.keep == -1:
             print("No keep specified for %s, keeping all"%self.name)
             return
-
+        if not os.path.exists(self.host_dir):
+            print("New host, no pruning needed")
+            return
         snaps = sorted([snap for snap in os.listdir(self.host_dir) if not snap == "latest" ], reverse=True)
         while len(snaps) > self.keep:
             snap = snaps.pop()
@@ -63,9 +65,8 @@ class Host():
                 pass    
 
 class BackupRunner():
-    def __init__(self, config_dir, dest_dir):
+    def __init__(self, config_dir):
         self.config_dir = config_dir
-        self.dest_dir = dest_dir
         if not os.path.exists(self.config_dir):
             print("No config found", self.config_dir)
             sys-exit(-1)
@@ -91,6 +92,6 @@ if __name__ == "__main__":
     if os.geteuid() != 0:
         print("You need to be root. Otherwise all permissions will be lost.")
         sys.exit(-1)
-    br = BackupRunner("/etc/butterbackup", "/mnt/data2")
+    br = BackupRunner("/etc/butterbackup")
     br.run()
     sys.exit(0)
