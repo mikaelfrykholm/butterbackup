@@ -71,16 +71,22 @@ class BackupRunner():
             print("No config found", self.config_dir)
             sys-exit(-1)
 
-    def run(self):
-        self.hosts = os.listdir(self.config_dir)
+    def run(self, hostlist=None):
+        self.hosts = hostlist or os.listdir(self.config_dir)
 
         for host in self.hosts:
             if host == 'default.cfg':
                 continue
             try:
+                configfile = os.path.join(self.config_dir, host)
+
+                if not os.path.exists(configfile):
+                    # Trigger logging in the except clause
+                    raise BaseException()
+
                 config = configparser.ConfigParser(strict=False)
                 config.read_file(open(os.path.join(self.config_dir, 'default.cfg'),'r'))
-                config.read(os.path.join(self.config_dir, host))
+                config.read(configfile)
             except BaseException as ex:
                 print("Config error for %s. Skipping host."%host)
                 continue
@@ -93,5 +99,9 @@ if __name__ == "__main__":
         print("You need to be root. Otherwise all permissions will be lost.")
         sys.exit(-1)
     br = BackupRunner("/etc/butterbackup")
-    br.run()
+
+    hostlist = sys.argv[1:]
+    br.run(hostlist=hostlist)
+
     sys.exit(0)
+
