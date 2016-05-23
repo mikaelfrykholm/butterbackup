@@ -34,8 +34,10 @@ class Host():
             print(command + excludes + " root@%s:/ "%(self.name) + self.subvol_dir)
             check_call(shlex.split(command + excludes + " root@%s:/ "%(self.name) + self.subvol_dir))
         except CalledProcessError as ex:
-            if ex.returncode not in (12, 30):
-                print("Rsync did not transfer anything from %s, skipping snapshot."%self.name)
+            if ex.returncode in (24,):
+                pass
+            else:
+                print("Rsync error from %s, skipping snapshot. Rsync exit value=%s"%(self.name, ex.returncode))
                 return()
         todays_date = datetime.datetime.now().date().strftime("%F")
         if os.path.exists(os.path.join(self.host_dir, todays_date)):
