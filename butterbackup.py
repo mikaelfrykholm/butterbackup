@@ -29,10 +29,15 @@ class Host():
                 return() 
             
         command = ("rsync -a --acls --xattrs --whole-file --numeric-ids --delete --delete-excluded --human-readable --inplace ")
-        excludes = " --exclude " + " --exclude ".join(self.config.get("host", "exclude").split(',')) #FIXME
+        if self.config.has_option("host", "include"):
+            includes = " --include " + " --include ".join(self.config.get("host", "include").split(',')) #FIXME
+            command = command + includes
+        if self.config.has_option("host", "exclude"):
+            excludes = " --exclude " + " --exclude ".join(self.config.get("host", "exclude").split(',')) #FIXME
+            command = command + excludes
         try:
-            print(command + excludes + " root@%s:/ "%(self.name) + self.subvol_dir)
-            check_call(shlex.split(command + excludes + " root@%s:/ "%(self.name) + self.subvol_dir))
+            print(command + " root@%s:/ "%(self.name) + self.subvol_dir)
+            check_call(shlex.split(command + " root@%s:/ "%(self.name) + self.subvol_dir))
         except CalledProcessError as ex:
             if ex.returncode in (24,):
                 pass
