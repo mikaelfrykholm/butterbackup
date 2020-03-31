@@ -141,6 +141,9 @@ class Host:
 
     async def _create_snapshot(self, snapshot):
         logger.info('{}: Creating snapshot {}'.format(self.name, snapshot))
+        if args.dry_run:
+            logger.info('{}: Creating snapshot {} skipped with -n'.format(self.name, snapshot))
+            return True
         return_code = await self._run_command('/bin/btrfs subvol snapshot -r {} {}'.format(self.subvol_dir, os.path.join(self.host_dir, snapshot)))
         if return_code != 0:
             logger.error('{}: Creating snapshot {} failed'.format(self.name, snapshot))
@@ -150,6 +153,10 @@ class Host:
 
     async def _create_subvolume(self, subvolume):
         logger.info('{}: Creating subvolume {}'.format(self.name, subvolume))
+        if args.no_act:
+            logger.info('{}: Creating subvolume {}, skipped due to -n'.format(self.name, subvolume))
+            return True
+
         return_code = await self._run_command('/bin/btrfs subvol create {}'.format(subvolume))
         if return_code != 0:
             logger.error('{}: Creating subvolume {} failed'.format(self.name, subvolume))
@@ -224,7 +231,6 @@ async def backup(host_name):
         # Load default host configuration
         with open(os.path.join(args.configuration, 'default.cfg'), 'r') as default_config:
             host_config.read_file(default_config)
-
         host_config.read(config_file)
     except configparser.Error:
         logger.error('{}: Skipping host due to configuration file error'.format(host_name))
@@ -249,15 +255,16 @@ async def worker(queue):
         host = await queue.get()
 
         try:
-            await backup(host)
+            await asyncio.create_task(backup(host))
         except BackupFailedException:
             failed_hosts.append(host)
             set_status(1)
+        queue.task_done()
 
     return failed_hosts
 
 
-def main():
+async def main():
     if not os.path.exists(args.configuration):
         raise ValueError('No configuration directory found')
 
@@ -273,15 +280,12 @@ def main():
     for host in hosts:
         if host == 'default.cfg' or host.startswith('.'):
             continue
-
         queue.put_nowait(host)
 
-    loop = asyncio.get_event_loop()
-    workers = [asyncio.async(worker(queue)) for x in range(args.concurrency)]
-    done, pending = loop.run_until_complete(asyncio.wait(workers))
-    loop.close()
-
-    failed_hosts = functools.reduce(operator.add, map(lambda task: task.result(), done))
+    workers = [asyncio.create_task(worker(queue)) for x in range(args.concurrency)]
+    (failed, done) = await asyncio.gather(*workers, return_exceptions=True)
+    await queue.join()
+    failed_hosts = functools.reduce(operator.add, map(lambda task: task.result(), done),[])
     if len(failed_hosts) > 0:
         logger.error('Back up failed: {}'.format(', '.join(failed_hosts)))
 
@@ -338,7 +342,7 @@ if __name__ == '__main__':
         logger = logging.getLogger(__name__)
         args = parse_command_line()
         configure_logging()
-        main()
+        asyncio.run(main())
     except Exception as e:
         logging.exception(e)
         set_status(1)
